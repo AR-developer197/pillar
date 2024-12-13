@@ -1,23 +1,17 @@
 use std::{fmt::Debug, future::Future, pin::Pin};
 
-pub struct ServiceHandler;
+use crate::layer::Layer;
 
 pub trait Service<T> {
     type Response;
-    type Future: Future<Output = Result<Self::Response, Self::Error>>;
     type Error;
+    type Future: Future<Output = Result<Self::Response, Self::Error>>;
 
     fn call(&mut self, req: T) -> Self::Future;
 }
 
 pub struct RequestHandler<S> {
     inner: S
-}
-
-impl <S>RequestHandler<S> {
-    pub fn new(inner: S) -> Self {
-        Self { inner }
-    }
 }
 
 impl <T, S> Service<T> for RequestHandler<S>
@@ -47,6 +41,8 @@ where
     }
 }
 
+pub struct ServiceHandler;
+
 impl <T> Service<T> for ServiceHandler {
     type Response = String;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
@@ -57,5 +53,16 @@ impl <T> Service<T> for ServiceHandler {
         Box::pin(async{
             Ok("hello".to_string())
         })
+    }
+}
+
+#[derive(Debug)]
+pub struct RequestHandlerLayer;
+
+impl <S> Layer<S> for RequestHandlerLayer {
+    type Service = RequestHandler<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        RequestHandler { inner }
     }
 }
