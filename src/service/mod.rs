@@ -10,8 +10,15 @@ pub trait Service<T> {
     fn call(&mut self, req: T) -> Self::Future;
 }
 
+#[derive(Debug)]
 pub struct RequestHandler<S> {
     inner: S
+}
+
+impl <S>RequestHandler<S> {
+    pub fn _new(inner: S) -> Self{
+        Self {inner}
+    }
 }
 
 impl <T, S> Service<T> for RequestHandler<S>
@@ -29,7 +36,7 @@ where
 
 
     fn call(&mut self, req: T) -> Self::Future{
-        println!("req: {:#?}", req);
+        println!("1st req: {:#?}", req);
 
         let response = self.inner.call(req);
 
@@ -41,6 +48,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct ServiceHandler;
 
 impl <T> Service<T> for ServiceHandler {
@@ -49,6 +57,8 @@ impl <T> Service<T> for ServiceHandler {
     type Error = std::io::Error;
 
     fn call(&mut self, _: T) -> Self::Future{
+
+        println!("final");
 
         Box::pin(async{
             Ok("hello".to_string())
@@ -64,5 +74,53 @@ impl <S> Layer<S> for RequestHandlerLayer {
 
     fn layer(&self, inner: S) -> Self::Service {
         RequestHandler { inner }
+    }
+}
+
+pub struct RequestHandler2<S> {
+    inner: S
+}
+
+impl <S>RequestHandler2<S> {
+    pub fn new(inner: S) -> Self {
+        RequestHandler2 {inner}
+    }
+}
+
+impl <T, S> Service<T> for RequestHandler2<S>
+where 
+    T: Debug,
+    S: Service<T> + Send,
+    <S as Service<T>>::Future: Send + 'static,
+    <S as Service<T>>::Response: Debug,
+    std::io::Error: From <<S as Service<T>>::Error>
+    
+{
+    type Response = String;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Error = std::io::Error;
+
+
+    fn call(&mut self, req: T) -> Self::Future{
+        println!("2nd req: {:#?}", req);
+
+        let response = self.inner.call(req);
+
+        Box::pin(async move{
+            let response = response.await?;
+            let response = format!("{:#?}", response);
+            Ok(response)
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct RequestHandlerLayer2;
+
+impl <S> Layer<S> for RequestHandlerLayer2 {
+    type Service = RequestHandler2<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        RequestHandler2 { inner }
     }
 }
